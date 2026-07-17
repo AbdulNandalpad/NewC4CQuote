@@ -33,7 +33,7 @@ modules:
       memory: 256M
       disk-quota: 512M
     build-parameters:
-      builder: npm-ci
+      builder: npm
     provides:
       - name: srv-api
         properties:
