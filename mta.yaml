@@ -1,0 +1,81 @@
+_schema-version: 3.3.0
+ID: NewC4CQuote
+version: 1.0.0
+description: >
+  C4C Quote tooling on SAP BTP / Cloud Foundry: a standalone pricing
+  simulation app, and a replica of the C4C Quote items tab meant to be
+  embedded back into C4C as a URL Mashup.
+
+parameters:
+  enable-parallel-deployments: true
+
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - npm ci
+        - npx cds build --production
+
+modules:
+  # SAP CAP backend: OData services for both apps (/pricing, /quote-items).
+  # No auth is enforced yet — deliberately deferred until the real security
+  # requirements (who can create/read quote data, how C4C authenticates
+  # into the mashup) are defined. See README "Open items" before going live.
+  - name: NewC4CQuote-srv
+    type: nodejs
+    path: gen/srv
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+      memory: 256M
+      disk-quota: 512M
+    build-parameters:
+      builder: npm-ci
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+
+  # Part 1: standalone pricing simulation UI (React/Vite), served by its own
+  # small Express static server so response headers stay under our control.
+  - name: pricing-simulation
+    type: nodejs
+    path: app/pricing-simulation
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+      memory: 128M
+      disk-quota: 256M
+    build-parameters:
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build
+    requires:
+      - name: srv-api
+    properties:
+      API_ORIGIN: ~{srv-api/srv-url}
+
+  # Part 2: C4C Quote items replica UI (React/Vite) — this is the module
+  # meant to be embedded as a C4C URL Mashup iframe. FRAME_ANCESTORS must be
+  # set to the real C4C tenant domain(s) before deploying to a real tenant;
+  # it defaults to 'self' (same-origin only, i.e. NOT embeddable) so an
+  # unconfigured deploy fails closed rather than open.
+  - name: quote-items
+    type: nodejs
+    path: app/quote-items
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+      memory: 128M
+      disk-quota: 256M
+    build-parameters:
+      builder: custom
+      commands:
+        - npm ci
+        - npm run build
+    requires:
+      - name: srv-api
+    properties:
+      API_ORIGIN: ~{srv-api/srv-url}
+      FRAME_ANCESTORS: "'self'"
