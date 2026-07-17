@@ -39,6 +39,10 @@ modules:
           srv-url: ${default-url}
     requires:
       - name: NewC4CQuote-destination
+      - name: pricing-simulation-ui
+      - name: quote-items-ui
+    properties:
+      ALLOWED_ORIGINS: ~{pricing-simulation-ui/url},~{quote-items-ui/url}
 
   # Part 1: standalone pricing simulation UI (React/Vite), served by its own
   # small Express static server so response headers stay under our control.
@@ -55,6 +59,10 @@ modules:
       commands:
         - npm ci
         - npm run build
+    provides:
+      - name: pricing-simulation-ui
+        properties:
+          url: ${default-url}
     requires:
       - name: srv-api
     properties:
@@ -78,6 +86,10 @@ modules:
       commands:
         - npm ci
         - npm run build
+    provides:
+      - name: quote-items-ui
+        properties:
+          url: ${default-url}
     requires:
       - name: srv-api
     properties:

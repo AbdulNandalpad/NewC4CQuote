@@ -28,7 +28,13 @@ mta.yaml              Cloud Foundry MTA: 3 modules (srv, pricing-simulation, quo
 Each UI app is deployed as its **own** Cloud Foundry app, reached directly —
 no approuter in front of either one right now. Instead:
 - The CAP backend allows cross-origin requests from both UI origins (CORS,
-  see `srv/server.js`, configured via the `ALLOWED_ORIGINS` env var).
+  see `srv/server.js`, configured via the `ALLOWED_ORIGINS` env var). In
+  `mta.yaml` this is wired automatically — `NewC4CQuote-srv` picks up both
+  UI apps' deployed URLs via `pricing-simulation-ui`/`quote-items-ui`
+  bindings, so it doesn't need manual `cf set-env` after every deploy. If
+  that circular module binding ever fails to deploy, fall back to setting
+  `ALLOWED_ORIGINS` by hand: `cf set-env NewC4CQuote-srv ALLOWED_ORIGINS
+  "https://<pricing-simulation-url>,https://<quote-items-url>"` + restage.
 - Each UI is served by a minimal Express server (`server.js`) instead of a
   static buildpack, so we have full control over response headers and can
   inject the backend's URL at **runtime** (via `/runtime-config.js`, reading
