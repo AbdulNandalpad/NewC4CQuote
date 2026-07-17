@@ -130,5 +130,11 @@ screen's business object fields.
   need a Communication Arrangement + OData API call from `srv/`.
 - **Persistence**: SQLite → HANA Cloud or PostgreSQL hyperscaler option.
 - **The "AI replacement" feature itself** — not yet specified.
+- **Pricing engine** — see [`docs/pricing-engine-spec.md`](docs/pricing-engine-spec.md)
+  for the real (Trelleborg-specific) regional pricing formulas and the
+  integration requirements: ERP + BI Central Cost DB via the API6
+  middleware, and pulling data from a C4C Opportunity when it's converted
+  to a Quote. This is meant to become the real pricing/quoting logic, not
+  just the `app/pricing-simulation` sandbox — not yet implemented.
 - **Priority** between building out Part 1 (pricing simulation) vs. Part 2
   (quote items + AI replacement) — TBD.
