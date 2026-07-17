@@ -18,9 +18,12 @@ build-parameters:
 
 modules:
   # SAP CAP backend: OData services for both apps (/pricing, /quote-items).
-  # No auth is enforced yet — deliberately deferred until the real security
-  # requirements (who can create/read quote data, how C4C authenticates
-  # into the mashup) are defined. See README "Open items" before going live.
+  # PricingService requires the PricingUser role (XSUAA) — only reachable
+  # for real through pricing-approuter, which handles the login. srv itself
+  # still enforces it directly too (defense in depth). QuoteItemsService
+  # remains deliberately open/unauthenticated — it must stay reachable
+  # anonymously for the C4C mashup iframe. See README "Open items" for what
+  # auth strategy quote-items still needs before going live.
   - name: NewC4CQuote-srv
     type: nodejs
     path: gen/srv
@@ -37,9 +40,13 @@ modules:
           srv-url: ${default-url}
     requires:
       - name: NewC4CQuote-destination
+      - name: NewC4CQuote-auth
 
-  # Part 1: standalone pricing simulation UI (React/Vite), served by its own
-  # small Express static server so response headers stay under our control.
+  # Part 1: standalone pricing simulation UI (React/Vite). Not reached
+  # directly — pricing-approuter proxies to it and to srv's /pricing routes
+  # under one origin, after enforcing XSUAA login. API_ORIGIN is left empty
+  # so the UI's fetch calls stay relative and go through whichever origin
+  # actually served the page.
   - name: pricing-simulation
     type: nodejs
     path: app/pricing-simulation
@@ -53,16 +60,50 @@ modules:
       commands:
         - npm ci
         - npm run build
+    provides:
+      - name: pricing-ui
+        properties:
+          url: ${default-url}
+    properties:
+      API_ORIGIN: ""
+
+  # Reverse proxy + login gate in front of pricing-simulation only. Users
+  # must hold the "Pricing Simulation User" role collection (xs-security.json)
+  # to get past XSUAA login — a BTP admin assigns that in Cockpit > Security
+  # > Users. This is the ONLY supported entry point for Part 1.
+  - name: pricing-approuter
+    type: approuter.nodejs
+    path: app/router
+    parameters:
+      keep-existing-routes: true
+      disk-quota: 256M
+      memory: 256M
     requires:
       - name: srv-api
-    properties:
-      API_ORIGIN: ~{srv-api/srv-url}
+        group: destinations
+        properties:
+          name: srv-api
+          url: ~{srv-url}
+          forwardAuthToken: true
+      - name: pricing-ui
+        group: destinations
+        properties:
+          name: pricing-ui
+          url: ~{url}
+          forwardAuthToken: true
+      - name: NewC4CQuote-auth
+    provides:
+      - name: app-api
+        properties:
+          app-protocol: ${protocol}
+          app-uri: ${default-uri}
 
   # Part 2: C4C Quote items replica UI (React/Vite) — this is the module
   # meant to be embedded as a C4C URL Mashup iframe. FRAME_ANCESTORS must be
   # set to the real C4C tenant domain(s) before deploying to a real tenant;
   # it defaults to 'self' (same-origin only, i.e. NOT embeddable) so an
-  # unconfigured deploy fails closed rather than open.
+  # unconfigured deploy fails closed rather than open. Deliberately NOT
+  # behind pricing-approuter / XSUAA — see the srv module comment above.
   - name: quote-items
     type: nodejs
     path: app/quote-items
@@ -93,3 +134,23 @@ resources:
     parameters:
       service: destination
       service-plan: lite
+
+  # XSUAA instance backing PricingService's @requires:'PricingUser' and
+  # pricing-approuter's login. xs-security.json defines the PricingUser
+  # scope/role-template and a "Pricing Simulation User" role collection —
+  # assign that role collection to specific users in BTP Cockpit to grant
+  # access; nobody has it by default.
+  - name: NewC4CQuote-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: ./xs-security.json
+      config:
+        xsappname: NewC4CQuote-${org}-${space}
+        tenant-mode: dedicated
+        oauth2-configuration:
+          redirect-uris:
+            - https://*~{app-api/app-uri}/**
+    requires:
+      - name: app-api

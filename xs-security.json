@@ -1,0 +1,24 @@
+{
+  "xsappname": "NewC4CQuote",
+  "tenant-mode": "dedicated",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.PricingUser",
+      "description": "Access to the standalone Pricing Simulation app"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "PricingUser",
+      "description": "Pricing Simulation User",
+      "scope-references": ["$XSAPPNAME.PricingUser"]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "Pricing Simulation User",
+      "description": "Grants access to the standalone Pricing Simulation app — assign to specific users in BTP Cockpit > Security > Users",
+      "role-template-references": ["$XSAPPNAME.PricingUser"]
+    }
+  ]
+}
