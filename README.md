@@ -68,6 +68,41 @@ npm run dev                    # http://localhost:5174, proxies /quote-items to 
 To simulate C4C passing quote context into the mashup, open:
 `http://localhost:5174/?quoteId=Q-100`
 
+## Pricing engine
+
+`PricingService.calculatePrice` (in `srv/pricing-service.js`) implements the
+real Trelleborg regional pricing formulas — see
+[`docs/pricing-engine-spec.md`](docs/pricing-engine-spec.md) for the exact
+math per region (Americas/Europe/China/India), ported 1:1 from the uploaded
+prototype into `srv/lib/pricing-engine.js`.
+
+- Pass `baseCost` explicitly to price a manual/simulated number (this is
+  what `app/pricing-simulation` does today).
+- Omit `baseCost` (or pass 0/null) to have it looked up live via
+  `srv/lib/cost-provider.js`, which tries **ERP then BI Central Cost DB**,
+  both reached through the **API6 middleware** — this is what makes the
+  engine "the soul for pricing and quoting" rather than just a sandbox.
+- If neither source has a cost (or API6 isn't configured), the function
+  returns `{ error: "..." }` naming the correct ERP table/field to check —
+  the same UX the original prototype had for a missing base cost.
+
+**API6 is not wired to anything real yet** — `srv/lib/cost-provider.js` calls
+placeholder paths (`/erp/cost/<region>`, `/bi-central-cost-db/cost`) and
+expects a `{ unitCost: <number> }` response. Once the real contract is
+known, update `ERP_COST_PATH` / `parseCostResponse` in that file. The
+connectivity plumbing (BTP Destination service, bound to `srv`) is already
+in `mta.yaml`; what's still needed:
+1. In BTP Cockpit → Connectivity → Destinations, create a destination named
+   **`API6`** pointing at the real middleware URL, with whatever auth your
+   API6 setup uses.
+2. Confirm the actual endpoint paths and response shape for "get unit cost
+   for part X in region Y" (ERP) and the BI Central Cost DB equivalent, and
+   adjust `cost-provider.js` accordingly.
+
+**Not yet implemented (explicitly deferred, not just missing):** pulling
+pricing engine inputs from a C4C Opportunity when it's converted to a Quote.
+See `docs/pricing-engine-spec.md` for what that will need once we get to it.
+
 ## Deploying to Cloud Foundry (SAP BTP)
 
 Requires the [Cloud MTA Build Tool](https://sap.github.io/cloud-mta-build-tool/)
@@ -130,11 +165,12 @@ screen's business object fields.
   need a Communication Arrangement + OData API call from `srv/`.
 - **Persistence**: SQLite → HANA Cloud or PostgreSQL hyperscaler option.
 - **The "AI replacement" feature itself** — not yet specified.
-- **Pricing engine** — see [`docs/pricing-engine-spec.md`](docs/pricing-engine-spec.md)
-  for the real (Trelleborg-specific) regional pricing formulas and the
-  integration requirements: ERP + BI Central Cost DB via the API6
-  middleware, and pulling data from a C4C Opportunity when it's converted
-  to a Quote. This is meant to become the real pricing/quoting logic, not
-  just the `app/pricing-simulation` sandbox — not yet implemented.
+- **API6 destination**: the real pricing engine is implemented (see
+  "Pricing engine" above) but not wired to a live API6 endpoint yet —
+  needs the destination configured and the endpoint contract confirmed.
+- **Opportunity → Quote data pull** — explicitly parked for now. When a C4C
+  Opportunity is converted to a Quote (standard C4C flow), the pricing
+  engine/quote item inputs should be populated from the Opportunity
+  automatically. Not designed yet — see `docs/pricing-engine-spec.md`.
 - **Priority** between building out Part 1 (pricing simulation) vs. Part 2
   (quote items + AI replacement) — TBD.

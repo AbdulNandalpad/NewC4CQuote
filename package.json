@@ -13,5 +13,15 @@
   "scripts": {
     "start": "cds-serve"
   },
-  "private": true
+  "private": true,
+  "cds": {
+    "requires": {
+      "API6": {
+        "kind": "rest",
+        "credentials": {
+          "destination": "API6"
+        }
+      }
+    }
+  }
 }

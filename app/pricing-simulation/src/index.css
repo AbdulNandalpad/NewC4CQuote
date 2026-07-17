@@ -1,7 +1,8 @@
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
+  background: #1A1A1A;
 }

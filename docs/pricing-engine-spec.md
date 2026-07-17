@@ -7,27 +7,29 @@ pricing engine — the prototype itself is a standalone JS mock with no live
 ERP connection; this spec is what needs to be reimplemented server-side
 (in `srv/`) against real data.
 
-**Status: OPEN.** Not yet implemented. Captured here so the logic and the
-integration requirements below aren't lost before we get to build it.
+**Status: IMPLEMENTED**, except the two items called out below. The
+calculation logic and the API6-based cost lookup plumbing are built — see
+`srv/pricing-service.cds` (the `calculatePrice` function),
+`srv/lib/pricing-engine.js` (the four regional formulas) and
+`srv/lib/cost-provider.js` (ERP + BI Central Cost DB via API6). What's
+still open:
+
+1. **API6 isn't wired to a real endpoint yet** — `cost-provider.js` calls
+   placeholder paths and expects a `{unitCost: <number>}` response; the
+   BTP Destination service plumbing is in `mta.yaml`, but the actual
+   `API6` destination (URL, auth) needs to be created in BTP Cockpit, and
+   the real endpoint contract confirmed. See README "Pricing engine".
+2. **Opportunity → Quote data pull is explicitly parked, not just missing.**
+   When a C4C Opportunity is converted to a Quote (standard C4C flow), this
+   app should pick up the relevant data (product/part, quantity, customer,
+   region, etc.) from the Opportunity automatically rather than requiring
+   re-entry. Not designed yet.
 
 ## Why this matters more than a generic pricing-simulation calc
 
 This is described as "the soul for pricing and quoting" — i.e. this isn't a
 side calculator, it's meant to become the actual pricing logic used for real
-quotes, not just the standalone `app/pricing-simulation` sandbox. When this
-gets built, it needs:
-
-1. **Live base cost lookup**, not manual entry — from ERP and from the "BI
-   Central Cost DB", both reached via the **API6 middleware** integration
-   layer (a Trelleborg-side integration platform/API gateway; protocol,
-   auth, and endpoint details TBD — need to gather these before building
-   the connector).
-2. **Opportunity → Quote data pull**: when a C4C Opportunity is converted to
-   a Quote (standard C4C flow), this app must pick up the relevant data
-   (product/part, quantity, customer, region, etc.) from the Opportunity
-   automatically rather than requiring re-entry.
-
-Both are open integration points — not yet designed, just flagged here.
+quotes, not just the standalone `app/pricing-simulation` sandbox.
 
 ## Regional calculation logic
 
@@ -111,17 +113,20 @@ since they indicate where live base cost lookup needs to read from.
 - Local: `unit_price = base` (landed cost = base cost, no markup).
 - Overseas: `unit_price = base + (base × 40%)`.
 
-## Open items before this can be built for real
+## Open items
 
-- API6 middleware: protocol (REST/OData/SOAP), auth, and the actual
-  endpoints for (a) ERP cost lookup per region and (b) BI Central Cost DB.
+- **API6 endpoint contract**: `srv/lib/cost-provider.js` currently assumes
+  REST + a `{unitCost: <number>}` response on placeholder paths — confirm
+  the real protocol/auth/paths and adjust that file. The BTP Destination
+  service wiring is done (`mta.yaml`); only the destination itself (URL,
+  auth) needs creating in BTP Cockpit.
 - Whether Americas' MROQ toggle is actually meant to change the formula
-  (the prototype only changes the scenario label, not the math) — confirm
-  with the business owner.
+  (the prototype only changes the scenario label, not the math — the
+  server-side port in `srv/lib/pricing-engine.js` preserves this as-is) —
+  confirm with the business owner.
 - Where Europe's per-part Freight%/Duty% should come from once this isn't
-  manually typed in (per-supplier table? per-part master data?).
-- Design of the Opportunity → Quote data handoff (which C4C Opportunity
-  fields map to which pricing engine inputs).
-- How this relates to `db/schema.cds` / `PricingSimulations` — likely this
-  becomes the real calculation behind quote line items, not a separate
-  standalone tool, once ERP connectivity exists.
+  manually typed in (per-supplier table? per-part master data?). Currently
+  still a `calculatePrice` input parameter.
+- **Opportunity → Quote data handoff — explicitly parked, not built.**
+  Design of which C4C Opportunity fields map to which pricing engine
+  inputs is still needed.

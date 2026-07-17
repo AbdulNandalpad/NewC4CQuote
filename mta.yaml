@@ -35,6 +35,8 @@ modules:
       - name: srv-api
         properties:
           srv-url: ${default-url}
+    requires:
+      - name: NewC4CQuote-destination
 
   # Part 1: standalone pricing simulation UI (React/Vite), served by its own
   # small Express static server so response headers stay under our control.
@@ -79,3 +81,15 @@ modules:
     properties:
       API_ORIGIN: ~{srv-api/srv-url}
       FRAME_ANCESTORS: "'self'"
+
+resources:
+  # Provides destination lookup for srv's outbound call to API6 (ERP + BI
+  # Central Cost DB). The service instance is provisioned here, but the
+  # actual "API6" destination (URL, auth) is NOT — that must be created by
+  # hand in BTP Cockpit → Connectivity → Destinations once the real API6
+  # endpoint/auth details are known. See README "Open items".
+  - name: NewC4CQuote-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
