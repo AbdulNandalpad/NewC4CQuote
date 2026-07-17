@@ -23,4 +23,4 @@ app.use((_req, res) => {
 })
 
 const port = process.env.PORT || 8081
-app.listen(port, () => console.log(`pricing-simulation listening on ${port}`))
+app.listen(port, () => console.log(`tss-pricing-ai listening on ${port}`))

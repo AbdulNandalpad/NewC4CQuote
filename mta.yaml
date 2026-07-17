@@ -39,16 +39,18 @@ modules:
           srv-url: ${default-url}
     requires:
       - name: NewC4CQuote-destination
-      - name: pricing-simulation-ui
+      - name: tss-pricing-ai-ui
       - name: quote-items-ui
     properties:
-      ALLOWED_ORIGINS: ~{pricing-simulation-ui/url},~{quote-items-ui/url}
+      ALLOWED_ORIGINS: ~{tss-pricing-ai-ui/url},~{quote-items-ui/url}
 
   # Part 1: standalone pricing simulation UI (React/Vite), served by its own
   # small Express static server so response headers stay under our control.
-  - name: pricing-simulation
+  # Deployed/branded as "TSS Pricing AI" (module name drives both the CF app
+  # name and its default route/URL).
+  - name: tss-pricing-ai
     type: nodejs
-    path: app/pricing-simulation
+    path: app/tss-pricing-ai
     parameters:
       instances: 1
       buildpack: nodejs_buildpack
@@ -60,7 +62,7 @@ modules:
         - npm ci
         - npm run build
     provides:
-      - name: pricing-simulation-ui
+      - name: tss-pricing-ai-ui
         properties:
           url: ${default-url}
     requires:
@@ -101,7 +103,7 @@ modules:
   # POST /mcp. No credentials are stored here — every tool call passes the
   # caller's own Authorization header straight through to PricingService, so
   # a caller authenticates as the same PricingUser Basic Auth account used
-  # by the pricing-simulation UI, and CAP is what actually accepts/rejects it.
+  # by the TSS Pricing AI UI, and CAP is what actually accepts/rejects it.
   - name: pricing-mcp-server
     type: nodejs
     path: app/mcp-server

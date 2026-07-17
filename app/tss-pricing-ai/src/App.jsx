@@ -39,7 +39,7 @@ function Login({ onSuccess }) {
     <main className="app">
       <div className="login-box">
         <div className="logo-slot" aria-hidden="true" />
-        <h1>Regional Pricing Simulation</h1>
+        <h1>TSS Pricing AI</h1>
         <p className="subtitle">Restricted — sign in as {ADMIN_EMAIL}.</p>
         <form onSubmit={submit}>
           <div className="field">
@@ -95,7 +95,7 @@ function App() {
         <div className="app-header-row">
           <div className="brand">
             <div className="logo-slot" aria-hidden="true" />
-            <h1>Regional Pricing Simulation</h1>
+            <h1>TSS Pricing AI</h1>
           </div>
           <button type="button" className="sign-out-btn" onClick={signOut}>Sign out</button>
         </div>

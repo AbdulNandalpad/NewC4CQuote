@@ -6,7 +6,7 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 // Every tool call is a plain pass-through to PricingService using the
 // caller's own Authorization header — there is no separate MCP credential
 // store. Whoever calls this server authenticates as the same PricingUser
-// account (Basic Auth) already used by the pricing-simulation UI; the CAP
+// account (Basic Auth) already used by the TSS Pricing AI UI; the CAP
 // backend (requires: 'authenticated-user') is what actually accepts or
 // rejects the credentials on each call, exactly as it does for the UI.
 const PRICING_API = `${process.env.API_ORIGIN || 'http://localhost:4004'}/pricing`
@@ -150,7 +150,7 @@ app.use(express.json())
 app.post('/mcp', async (req, res) => {
   const authHeader = req.headers['authorization']
   if (!authHeader) {
-    res.status(401).json({ error: 'Missing Authorization header. Connect using the same PricingUser Basic Auth credentials as the pricing-simulation app.' })
+    res.status(401).json({ error: 'Missing Authorization header. Connect using the same PricingUser Basic Auth credentials as the TSS Pricing AI app.' })
     return
   }
 

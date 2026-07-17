@@ -204,7 +204,7 @@ async function downloadTemplate() {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'pricing-simulation-template.xlsx'
+  a.download = 'tss-pricing-ai-template.xlsx'
   a.click()
   URL.revokeObjectURL(url)
 }

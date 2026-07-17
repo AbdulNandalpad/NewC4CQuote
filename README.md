@@ -2,7 +2,7 @@
 
 A full-stack app on SAP BTP (Cloud Foundry) with two parts:
 
-1. **Pricing simulation** (`app/pricing-simulation`) — a standalone scratchpad
+1. **TSS Pricing AI** (`app/tss-pricing-ai`) — a standalone scratchpad
    for pricing hypothetical line items.
 2. **Quote items** (`app/quote-items`) — a replica of the C4C Quote's item
    tab. This is the part meant to be **embedded back into SAP C4C** as a
@@ -20,10 +20,10 @@ srv/                CAP backend (Node.js) — OData services, SQLite for now
   pricing-service.cds
   quote-items-service.cds
 db/schema.cds        Data model for both services
-app/pricing-simulation/   React (Vite) UI + a tiny Express static server
+app/tss-pricing-ai/   React (Vite) UI + a tiny Express static server
 app/quote-items/          React (Vite) UI + a tiny Express static server
 app/mcp-server/       MCP server (external agent access to PricingService)
-mta.yaml              Cloud Foundry MTA: 4 modules (srv, pricing-simulation, quote-items, pricing-mcp-server)
+mta.yaml              Cloud Foundry MTA: 4 modules (srv, tss-pricing-ai, quote-items, pricing-mcp-server)
 ```
 
 Each UI app is deployed as its **own** Cloud Foundry app, reached directly —
@@ -31,11 +31,11 @@ no approuter in front of either one right now. Instead:
 - The CAP backend allows cross-origin requests from both UI origins (CORS,
   see `srv/server.js`, configured via the `ALLOWED_ORIGINS` env var). In
   `mta.yaml` this is wired automatically — `NewC4CQuote-srv` picks up both
-  UI apps' deployed URLs via `pricing-simulation-ui`/`quote-items-ui`
+  UI apps' deployed URLs via `tss-pricing-ai-ui`/`quote-items-ui`
   bindings, so it doesn't need manual `cf set-env` after every deploy. If
   that circular module binding ever fails to deploy, fall back to setting
   `ALLOWED_ORIGINS` by hand: `cf set-env NewC4CQuote-srv ALLOWED_ORIGINS
-  "https://<pricing-simulation-url>,https://<quote-items-url>"` + restage.
+  "https://<tss-pricing-ai-url>,https://<quote-items-url>"` + restage.
 - Each UI is served by a minimal Express server (`server.js`) instead of a
   static buildpack, so we have full control over response headers and can
   inject the backend's URL at **runtime** (via `/runtime-config.js`, reading
@@ -75,14 +75,14 @@ wired into `mta.yaml`/`package.json` right now.
 
 **The interim lock**, concretely:
 - One account: email `abdul.nandalpad@trelleborg.com` (default; override via
-  `PRICING_ADMIN_EMAIL` on both `NewC4CQuote-srv` and `pricing-simulation`),
+  `PRICING_ADMIN_EMAIL` on both `NewC4CQuote-srv` and `tss-pricing-ai`),
   password from `PRICING_ADMIN_PASSWORD` — **not committed anywhere**; set it
   with `cf set-env NewC4CQuote-srv PRICING_ADMIN_PASSWORD '...'` then
   `cf restage NewC4CQuote-srv`. Unset = nobody can log in (fails closed).
 - Enforced server-side (`@(requires: 'authenticated-user')` on
   `PricingService` in `srv/pricing-service.cds`), so it's protected
   regardless of how it's reached.
-- `pricing-simulation`'s React UI has a matching login screen (password
+- `tss-pricing-ai`'s React UI has a matching login screen (password
   only, email is fixed) that stores the credential in `sessionStorage` and
   attaches it as a `Basic` auth header to `/pricing` calls.
 
@@ -94,12 +94,12 @@ npm install
 PRICING_ADMIN_PASSWORD=devpass npm start   # cds-serve on http://localhost:4004
 ```
 Without `PRICING_ADMIN_PASSWORD` set, `PricingService` still boots fine but
-nobody (including the pricing-simulation UI) can log in — see "Access
+nobody (including the TSS Pricing AI UI) can log in — see "Access
 control".
 
 Terminal 2 — pricing simulation UI:
 ```
-cd app/pricing-simulation
+cd app/tss-pricing-ai
 npm install
 npm run dev                    # http://localhost:5173, proxies /pricing to :4004
 ```
@@ -123,7 +123,7 @@ math per region (Americas/Europe/China/India), ported 1:1 from the uploaded
 prototype into `srv/lib/pricing-engine.js`.
 
 - Pass `baseCost` explicitly to price a manual/simulated number (this is
-  what `app/pricing-simulation` does today).
+  what `app/tss-pricing-ai` does today).
 - Omit `baseCost` (or pass 0/null) to have it looked up live via
   `srv/lib/cost-provider.js`, which tries **ERP then BI Central Cost DB**,
   both reached through the **API6 middleware** — this is what makes the
@@ -154,19 +154,19 @@ See `docs/pricing-engine-spec.md` for what that will need once we get to it.
 The constants in the formulas above (freight/duty/tariff/markup rates, pick
 charges, etc.) are **not hardcoded** — they live in `db.PricingRateConfig`
 (seeded from `db/data/c4cquote.db-PricingRateConfig.csv`), are exposed as
-`PricingService.RateConfig`, and are editable from `pricing-simulation`'s
+`PricingService.RateConfig`, and are editable from `tss-pricing-ai`'s
 **Admin: Rate Config** tab. Edits apply immediately to every subsequent
 `calculatePrices` call — `srv/pricing-service.js`'s `loadRates()` reads
 current values from the DB on every call rather than caching them.
 
 ### Multi-item calculator + Excel upload
 
-`pricing-simulation`'s Calculator tab prices any number of line items in one
+`tss-pricing-ai`'s Calculator tab prices any number of line items in one
 batch (`calculatePrices` takes `many PriceCalculationInput`), each with its
 own region, cost/currency, and region-specific fields, plus **Fetch from
 ERP** / **Fetch from BI Central Cost DB** buttons per line. **Download
 template** / **Upload Excel** round-trip every one of those fields through
-an `.xlsx` file (`app/pricing-simulation/src/fields.js`'s `EXCEL_COLUMNS`),
+an `.xlsx` file (`app/tss-pricing-ai/src/fields.js`'s `EXCEL_COLUMNS`),
 so a user can fill in a spreadsheet of parts offline and get priced results
 back without touching the UI form at all.
 
@@ -181,7 +181,7 @@ the same way the UI does. It's deployed as its own Cloud Foundry app
 - **Endpoint:** `POST <pricing-mcp-server-url>/mcp` (Streamable HTTP,
   stateless — one request/response per call, no session ID, no SSE stream).
 - **Auth:** pass the same PricingUser `Authorization: Basic <base64
-  email:password>` header the pricing-simulation UI uses. The MCP server
+  email:password>` header the TSS Pricing AI UI uses. The MCP server
   does not validate it itself — it forwards the header untouched to
   `PricingService` on every tool call, so CAP's own `requires:
   'authenticated-user'` check is what actually accepts or rejects it. A
@@ -209,7 +209,7 @@ cf deploy mta_archives/NewC4CQuote_1.0.0.mtar
 ```
 
 After deploying, set the interim lock's password (see "Access control"
-above) — without this nobody, including you, can use `pricing-simulation`:
+above) — without this nobody, including you, can use `tss-pricing-ai`:
 ```
 cf set-env NewC4CQuote-srv PRICING_ADMIN_PASSWORD 'choose-something'
 cf restage NewC4CQuote-srv
@@ -258,17 +258,17 @@ screen's business object fields.
 ## Open items (to define as we proceed)
 
 - **Authorization (OBO/XSUAA)** — deliberately parked as its own upcoming
-  phase, for both apps: restricting `pricing-simulation` to specific BTP
+  phase, for both apps: restricting `tss-pricing-ai` to specific BTP
   users, and finding a workable auth story for `quote-items` (can't be an
   interactive login redirect inside a small iframe tab — options include a
   signed token passed as a mashup parameter, IP/network restriction, or a
-  service-to-service trust between C4C and this app). The `pricing-simulation`
+  service-to-service trust between C4C and this app). The `tss-pricing-ai`
   side was already built and verified once (CAP-level `@requires`, an
   approuter, `xs-security.json` with a role collection) — see "Architecture"
   above for how to reactivate it. Known follow-ups for when that resumes:
   CSRF protection was left off on the approuter's proxy route
   (`app/router/xs-app.json`, `csrfProtection: false`) since the React client
-  doesn't implement the token-fetch handshake yet; and `pricing-simulation`'s
+  doesn't implement the token-fetch handshake yet; and `tss-pricing-ai`'s
   own direct CF route should probably be network-isolated (`no-route` +
   internal domain) rather than just relying on the CAP-level role check.
 - **Real C4C data integration**: today `QuoteItems` is our own copy, keyed
@@ -283,5 +283,5 @@ screen's business object fields.
   Opportunity is converted to a Quote (standard C4C flow), the pricing
   engine/quote item inputs should be populated from the Opportunity
   automatically. Not designed yet — see `docs/pricing-engine-spec.md`.
-- **Priority** between building out Part 1 (pricing simulation) vs. Part 2
+- **Priority** between building out Part 1 (TSS Pricing AI) vs. Part 2
   (quote items + AI replacement) — TBD.

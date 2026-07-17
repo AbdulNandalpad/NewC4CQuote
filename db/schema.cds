@@ -26,7 +26,7 @@ entity PricingSimulationItems : cuid, managed {
 /**
  * Configurable rates behind the regional pricing formulas — see
  * docs/pricing-engine-spec.md and srv/lib/pricing-engine.js. Editable via
- * the admin tab in pricing-simulation; seeded (db/data) with the values
+ * the admin tab in TSS Pricing AI (app/tss-pricing-ai); seeded (db/data) with the values
  * that used to be hardcoded, so behavior is unchanged until an admin
  * edits one. Flat key-value shape (rather than one column per rate) so a
  * single generic admin table can list/edit all regions without per-region

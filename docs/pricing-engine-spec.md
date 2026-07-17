@@ -29,7 +29,7 @@ still open:
 
 This is described as "the soul for pricing and quoting" — i.e. this isn't a
 side calculator, it's meant to become the actual pricing logic used for real
-quotes, not just the standalone `app/pricing-simulation` sandbox.
+quotes, not just the standalone `app/tss-pricing-ai` sandbox.
 
 ## Regional calculation logic
 
