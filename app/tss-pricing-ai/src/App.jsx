@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import { Calculator, LogOut, Lock, SlidersHorizontal } from 'lucide-react'
 import { checkLogin, API_BASE } from './api.js'
 import CalculatorTab from './CalculatorTab.jsx'
 import AdminTab from './AdminTab.jsx'
@@ -36,28 +37,36 @@ function Login({ onSuccess }) {
   }
 
   return (
-    <main className="app">
+    <main className="app login-shell">
       <div className="login-box">
         <img className="logo" src="/trelleborg-logo.svg" alt="Trelleborg" />
         <h1>TSS Pricing AI</h1>
-        <p className="subtitle">Restricted — sign in as {ADMIN_EMAIL}.</p>
+        <p className="subtitle">Regional pricing intelligence for Trelleborg Sealing Solutions</p>
         <form onSubmit={submit}>
+          <div className="login-lock-icon"><Lock /></div>
           <div className="field">
             <label>Password</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus placeholder={`Sign in as ${ADMIN_EMAIL}`} />
           </div>
           <button type="submit" className="calc-btn" disabled={checking}>
             {checking ? 'Checking…' : 'Sign In'}
           </button>
           {error && (
             <div className="alert-box show">
-              <div className="alert-title">⚠ {error}</div>
+              <div className="alert-title">{error}</div>
             </div>
           )}
         </form>
       </div>
     </main>
   )
+}
+
+function initialsOf(email) {
+  const name = email.split('@')[0] || ''
+  const parts = name.split(/[.\-_]/).filter(Boolean)
+  const chars = parts.length > 1 ? [parts[0][0], parts[1][0]] : [name[0], name[1]]
+  return chars.filter(Boolean).join('').toUpperCase()
 }
 
 function App() {
@@ -90,25 +99,44 @@ function App() {
   if (authHeader === null) return <Login onSuccess={setAuthHeader} />
 
   return (
-    <main className="app">
-      <header className="app-header">
-        <div className="app-header-row">
-          <div className="brand">
-            <img className="logo" src="/trelleborg-logo.svg" alt="Trelleborg" />
-            <h1>TSS Pricing AI</h1>
+    <div className="app shell">
+      <aside className="rail">
+        <div className="rail-brand">
+          <img src="/trelleborg-logo.svg" alt="Trelleborg" />
+          <div className="rail-brand-text">
+            <strong>TSS Pricing AI</strong>
+            <span>Sealing Solutions</span>
           </div>
-          <button type="button" className="sign-out-btn" onClick={signOut}>Sign out</button>
         </div>
-        <nav className="main-tabs">
-          <button type="button" className={`main-tab ${tab === 'calculator' ? 'active' : ''}`} onClick={() => setTab('calculator')}>Calculator</button>
-          <button type="button" className={`main-tab ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}>Admin: Rate Config</button>
+
+        <nav className="rail-nav">
+          <button type="button" className={`rail-btn ${tab === 'calculator' ? 'active' : ''}`} onClick={() => setTab('calculator')}>
+            <Calculator /> Calculator
+          </button>
+          <button type="button" className={`rail-btn ${tab === 'admin' ? 'active' : ''}`} onClick={() => setTab('admin')}>
+            <SlidersHorizontal /> Rate Config
+          </button>
         </nav>
-      </header>
 
-      {tab === 'calculator' ? <CalculatorTab authHeader={authHeader} /> : <AdminTab authHeader={authHeader} />}
+        <div className="rail-footer">
+          <div className="rail-avatar">{initialsOf(ADMIN_EMAIL)}</div>
+          <span className="rail-user-email" title={ADMIN_EMAIL}>{ADMIN_EMAIL}</span>
+          <button type="button" className="rail-signout" onClick={signOut} title="Sign out">
+            <LogOut />
+          </button>
+        </div>
+      </aside>
 
-      <footer className="app-footer">API: {API_BASE}</footer>
-    </main>
+      <div className="shell-main">
+        <header className="topbar">
+          <h1>{tab === 'calculator' ? 'Pricing Calculator' : 'Rate Configuration'}</h1>
+          <span className="topbar-sub">· {API_BASE}</span>
+        </header>
+        <div className="shell-content">
+          {tab === 'calculator' ? <CalculatorTab authHeader={authHeader} /> : <AdminTab authHeader={authHeader} />}
+        </div>
+      </div>
+    </div>
   )
 }
 

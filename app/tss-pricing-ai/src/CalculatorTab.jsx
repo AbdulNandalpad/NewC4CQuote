@@ -1,7 +1,29 @@
 import { useState } from 'react'
 import ExcelJS from 'exceljs'
+import {
+  Plus, Upload, Download, Sparkles, Database, CloudCog, Trash2,
+  ChevronDown, BookOpenText, Layers, Wallet, AlertTriangle, CheckCircle2,
+  SlidersHorizontal,
+} from 'lucide-react'
 import { calculatePrices, fetchCostFromERP, fetchCostFromBI } from './api.js'
 import { REGIONS, DEFAULT_CURRENCY, defaultFieldsFor, newLineItem, EXCEL_COLUMNS, FORMULA_REFERENCE } from './fields.js'
+
+function Segmented({ options, value, onChange, block }) {
+  return (
+    <div className={`segmented ${block ? 'block' : ''}`}>
+      {options.map((opt) => (
+        <button
+          key={String(opt.value)}
+          type="button"
+          className={`segmented-btn ${value === opt.value ? 'active' : ''}`}
+          onClick={() => onChange(opt.value)}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+}
 
 function ToggleGroup({ options, value, onChange }) {
   return (
@@ -94,8 +116,24 @@ function RegionFields({ item, onChange }) {
   )
 }
 
-function LineItemCard({ item, result, onChange, onRemove, canRemove, authHeader }) {
+function optionsSummary(item) {
+  switch (item.region) {
+    case 'americas':
+      return `${item.stockClass} · MROQ ${item.mroq ? 'Yes' : 'No'} · ${item.shipFrom === 'overseas' ? 'Overseas' : 'Domestic'}`
+    case 'europe':
+      return item.stockClass === 'NONMTS'
+        ? `Non-MTS · Freight ${item.freightPct ?? 0}% · Duty ${item.dutyPct ?? 0}%`
+        : 'MTS'
+    case 'china':
+      return `${item.supplierSource === 'sap' ? 'SAP Europe Fallback' : 'JDE China Direct'}${item.supplierSource === 'sap' ? ` · COO ${item.countryOfOrigin === 'us' ? '= US' : '≠ US'}` : ''} · ${item.applyLocalMarkups ? 'Local markups on' : 'No local markups'}`
+    default:
+      return item.supplierType === 'overseas' ? 'Overseas supplier' : 'Local supplier'
+  }
+}
+
+function LineItemCard({ index, item, result, onChange, onRemove, canRemove, authHeader }) {
   const [fetching, setFetching] = useState(false)
+  const [showOptions, setShowOptions] = useState(false)
 
   function selectRegion(region) {
     // Currency follows the region's default on switch — if a user wants a
@@ -119,12 +157,13 @@ function LineItemCard({ item, result, onChange, onRemove, canRemove, authHeader 
 
   return (
     <div className="line-item-card">
-      <div className="region-tabs">
-        {REGIONS.map((r) => (
-          <button key={r.key} type="button" className={`region-tab ${item.region === r.key ? 'active' : ''}`} onClick={() => selectRegion(r.key)}>
-            {r.label}
+      <div className="line-item-head">
+        <Segmented options={REGIONS.map((r) => ({ value: r.key, label: r.label }))} value={item.region} onChange={selectRegion} />
+        {canRemove && (
+          <button type="button" className="btn btn-danger-ghost btn-icon" onClick={onRemove} title={`Remove item ${index + 1}`}>
+            <Trash2 />
           </button>
-        ))}
+        )}
       </div>
 
       <div className="line-item-body">
@@ -148,20 +187,34 @@ function LineItemCard({ item, result, onChange, onRemove, canRemove, authHeader 
         </div>
 
         <div className="fetch-buttons">
-          <button type="button" disabled={fetching} onClick={() => fetchCost('erp')}>Fetch from ERP</button>
-          <button type="button" disabled={fetching} onClick={() => fetchCost('bi')}>Fetch from BI Central Cost DB</button>
-          {canRemove && <button type="button" className="remove-btn" onClick={onRemove}>Remove item</button>}
+          <button type="button" className="btn" disabled={fetching} onClick={() => fetchCost('erp')}><Database /> Fetch from ERP</button>
+          <button type="button" className="btn" disabled={fetching} onClick={() => fetchCost('bi')}><CloudCog /> Fetch from BI Central Cost DB</button>
         </div>
 
-        <RegionFields item={item} onChange={onChange} />
+        <div className="options-block">
+          <button type="button" className={`options-toggle ${showOptions ? 'open' : ''}`} onClick={() => setShowOptions((v) => !v)}>
+            <SlidersHorizontal />
+            <span className="options-toggle-label">Options</span>
+            {!showOptions && <span className="options-summary">{optionsSummary(item)}</span>}
+            <ChevronDown className="chev" />
+          </button>
+          {showOptions && (
+            <div className="options-grid">
+              <RegionFields item={item} onChange={onChange} />
+            </div>
+          )}
+        </div>
 
         {result?.error && (
-          <div className="alert-box show"><div className="alert-title">⚠ {result.error}</div></div>
+          <div className="alert-box show">
+            <AlertTriangle />
+            <div className="alert-title">{result.error}</div>
+          </div>
         )}
 
         {result && !result.error && (
           <div className="line-item-result">
-            <span className="scenario-tag">{result.scenario}</span>
+            <span className="scenario-tag"><CheckCircle2 style={{ width: 12, height: 12, marginRight: 4, verticalAlign: -2 }} />{result.scenario}</span>
             <span className="result-price">{result.currency} {result.unitPrice?.toFixed(2)} <span className="result-unit">/ unit</span></span>
             <span className="result-total">Total: {result.currency} {result.totalPrice?.toFixed(2)}</span>
             <span className="result-source">Cost source: {result.costSource}</span>
@@ -262,57 +315,74 @@ export default function CalculatorTab({ authHeader }) {
     setResults({})
   }
 
-  const grandTotal = Object.values(results).reduce((sum, r) => sum + (r?.totalPrice || 0), 0)
+  const resultList = Object.values(results)
+  const priced = resultList.filter((r) => r && !r.error)
+  const grandTotal = priced.reduce((sum, r) => sum + (r.totalPrice || 0), 0)
+  const currencies = [...new Set(priced.map((r) => r.currency).filter(Boolean))]
+  // Line items can span regions with different currencies (USD/EUR/CNY/INR);
+  // summing across them without conversion is only meaningful when they
+  // match, so flag it plainly rather than label a mixed sum with one currency.
+  const grandTotalLabel = currencies.length === 1 ? currencies[0] : currencies.length > 1 ? 'Mixed currencies' : ''
 
   return (
-    <div className="calculator-tab">
-      <section className="panel formula-panel">
-        <button type="button" className="formula-toggle" onClick={() => setShowFormulas((v) => !v)}>
-          {showFormulas ? '▾' : '▸'} How is this calculated?
-        </button>
-        {showFormulas && (
-          <div className="formula-body">
-            <div className="region-tabs">
-              {REGIONS.map((r) => (
-                <button key={r.key} type="button" className={`region-tab ${formulaRegion === r.key ? 'active' : ''}`} onClick={() => setFormulaRegion(r.key)}>
-                  {r.label}
-                </button>
-              ))}
-            </div>
-            <ul className="formula-list">
-              {FORMULA_REFERENCE[formulaRegion].map((line, i) => <li key={i}>{line}</li>)}
-            </ul>
-          </div>
-        )}
-      </section>
+    <div className="calc-layout">
+      <div className="calc-main">
+        <div className="toolbar">
+          <button type="button" className="btn" onClick={addItem}><Plus /> Add item</button>
+          <label className="btn upload-btn">
+            <Upload /> Upload Excel
+            <input type="file" accept=".xlsx" onChange={handleUpload} hidden />
+          </label>
+          <button type="button" className="btn" onClick={downloadTemplate}><Download /> Download template</button>
+          <div className="spacer" />
+          <button type="button" className="btn btn-primary" onClick={calculateAll} disabled={loading}>
+            <Sparkles /> {loading ? 'Calculating…' : `Calculate All (${items.length})`}
+          </button>
+        </div>
 
-      <div className="toolbar">
-        <button type="button" onClick={addItem}>+ Add item</button>
-        <label className="upload-btn">
-          Upload Excel
-          <input type="file" accept=".xlsx" onChange={handleUpload} hidden />
-        </label>
-        <button type="button" onClick={downloadTemplate}>Download template</button>
-        <button type="button" className="calc-btn" onClick={calculateAll} disabled={loading}>
-          {loading ? 'Calculating…' : `Calculate All (${items.length})`}
-        </button>
+        {items.map((item, i) => (
+          <LineItemCard
+            key={item.lineId}
+            index={i}
+            item={item}
+            result={results[item.lineId]}
+            onChange={(next) => updateItem(item.lineId, next)}
+            onRemove={() => removeItem(item.lineId)}
+            canRemove={items.length > 1}
+            authHeader={authHeader}
+          />
+        ))}
       </div>
 
-      {items.map((item) => (
-        <LineItemCard
-          key={item.lineId}
-          item={item}
-          result={results[item.lineId]}
-          onChange={(next) => updateItem(item.lineId, next)}
-          onRemove={() => removeItem(item.lineId)}
-          canRemove={items.length > 1}
-          authHeader={authHeader}
-        />
-      ))}
+      <aside className="calc-side">
+        <div className="card summary-card">
+          <h3>Summary</h3>
+          {resultList.length ? (
+            <>
+              <div className="summary-row"><span><Layers style={{ width: 13, height: 13, verticalAlign: -2, marginRight: 5 }} />Items priced</span><span>{priced.length} / {items.length}</span></div>
+              <div className="summary-row total"><span><Wallet style={{ width: 15, height: 15, verticalAlign: -2, marginRight: 5 }} />Grand total</span><span>{grandTotalLabel} {grandTotal.toFixed(2)}</span></div>
+              {currencies.length > 1 && <p className="summary-empty">Sum spans {currencies.join(', ')} without conversion — see line items for currency-accurate totals.</p>}
+            </>
+          ) : (
+            <p className="summary-empty">Run "Calculate All" to see pricing totals here.</p>
+          )}
+        </div>
 
-      {Object.keys(results).length > 0 && (
-        <div className="grand-total">Grand total (all items): {grandTotal.toFixed(2)}</div>
-      )}
+        <div className="card formula-card">
+          <button type="button" className={`formula-toggle ${showFormulas ? 'open' : ''}`} onClick={() => setShowFormulas((v) => !v)}>
+            <BookOpenText /> How is this calculated?
+            <ChevronDown className="chev" />
+          </button>
+          {showFormulas && (
+            <div className="formula-body">
+              <Segmented block options={REGIONS.map((r) => ({ value: r.key, label: r.label }))} value={formulaRegion} onChange={setFormulaRegion} />
+              <ul className="formula-list">
+                {FORMULA_REFERENCE[formulaRegion].map((line, i) => <li key={i}>{line}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      </aside>
     </div>
   )
 }
