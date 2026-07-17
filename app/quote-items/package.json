@@ -11,15 +11,15 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^5.2.1",
-    "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "express": "^5.2.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.3",
     "oxlint": "^1.71.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "vite": "^8.1.1"
   }
 }

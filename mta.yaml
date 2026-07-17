@@ -61,6 +61,12 @@ modules:
       commands:
         - npm ci
         - npm run build
+        # react/react-dom/exceljs/lucide-react are build-only (bundled into
+        # dist/assets by vite); server.js only needs express at runtime.
+        # Pruning here keeps the packaged module small — without it we hit
+        # "No space left on device" staging this app once lucide-react (a
+        # large package) was added on top of the already-unpruned deps.
+        - npm prune --omit=dev
     provides:
       - name: tss-pricing-ai-ui
         properties:
@@ -88,6 +94,8 @@ modules:
       commands:
         - npm ci
         - npm run build
+        # Same build-only-deps pruning as tss-pricing-ai — see its comment.
+        - npm prune --omit=dev
     provides:
       - name: quote-items-ui
         properties:
