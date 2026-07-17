@@ -29,36 +29,52 @@ async function connectToApi6() {
   }
 }
 
-/**
- * Looks up a part's base unit cost, first from ERP then from the BI Central
- * Cost DB, both reached through the API6 middleware. Returns
- * { baseCost, source } on success, or { baseCost: null, error } if neither
- * source has it (or API6 isn't reachable) — callers should fall back to
- * asking for a manual base cost in that case, same as the original
- * simulator prototype's "base cost missing" flow.
- */
-export async function getBaseCost({ partNumber, region }) {
+/** Looks up a part's base unit cost from ERP only, via API6. */
+export async function fetchFromERP({ partNumber, region }) {
   const api6 = await connectToApi6()
-  if (!api6) {
-    return { baseCost: null, source: null, error: 'API6 destination is not configured in this environment.' }
-  }
+  if (!api6) return { baseCost: null, source: null, error: 'API6 destination is not configured in this environment.' }
 
   try {
     const erpPath = ERP_COST_PATH[region]
     const erpResponse = await api6.get(erpPath, { partNumber })
     const erpCost = parseCostResponse(erpResponse)
-    if (erpCost != null) return { baseCost: erpCost, source: 'ERP via API6' }
+    if (erpCost != null) return { baseCost: erpCost, source: 'ERP via API6', error: null }
   } catch (err) {
     LOG.warn(`ERP cost lookup via API6 failed for ${partNumber}/${region}`, err.message)
   }
+  return { baseCost: null, source: null, error: 'No base cost found in ERP.' }
+}
+
+/** Looks up a part's base unit cost from the BI Central Cost DB only, via API6. */
+export async function fetchFromBI({ partNumber, region }) {
+  const api6 = await connectToApi6()
+  if (!api6) return { baseCost: null, source: null, error: 'API6 destination is not configured in this environment.' }
 
   try {
     const biResponse = await api6.get(BI_CENTRAL_COST_DB_PATH, { partNumber, region })
     const biCost = parseCostResponse(biResponse)
-    if (biCost != null) return { baseCost: biCost, source: 'BI Central Cost DB via API6' }
+    if (biCost != null) return { baseCost: biCost, source: 'BI Central Cost DB via API6', error: null }
   } catch (err) {
     LOG.warn(`BI Central Cost DB lookup via API6 failed for ${partNumber}/${region}`, err.message)
   }
+  return { baseCost: null, source: null, error: 'No base cost found in BI Central Cost DB.' }
+}
+
+/**
+ * Looks up a part's base unit cost, first from ERP then from the BI Central
+ * Cost DB. Returns { baseCost, source } on success, or { baseCost: null,
+ * error } if neither source has it (or API6 isn't reachable) — callers
+ * should fall back to asking for a manual base cost in that case, same as
+ * the original simulator prototype's "base cost missing" flow. Used by
+ * calculatePrice's implicit auto-lookup; the explicit "Fetch from ERP/BI"
+ * UI buttons call fetchFromERP/fetchFromBI directly instead.
+ */
+export async function getBaseCost({ partNumber, region }) {
+  const erp = await fetchFromERP({ partNumber, region })
+  if (erp.baseCost != null) return erp
+
+  const bi = await fetchFromBI({ partNumber, region })
+  if (bi.baseCost != null) return bi
 
   return { baseCost: null, source: null, error: 'No base cost found in ERP or BI Central Cost DB.' }
 }

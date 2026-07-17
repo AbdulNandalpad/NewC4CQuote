@@ -22,7 +22,8 @@ srv/                CAP backend (Node.js) — OData services, SQLite for now
 db/schema.cds        Data model for both services
 app/pricing-simulation/   React (Vite) UI + a tiny Express static server
 app/quote-items/          React (Vite) UI + a tiny Express static server
-mta.yaml              Cloud Foundry MTA: 3 modules (srv, pricing-simulation, quote-items)
+app/mcp-server/       MCP server (external agent access to PricingService)
+mta.yaml              Cloud Foundry MTA: 4 modules (srv, pricing-simulation, quote-items, pricing-mcp-server)
 ```
 
 Each UI app is deployed as its **own** Cloud Foundry app, reached directly —
@@ -147,6 +148,54 @@ in `mta.yaml`; what's still needed:
 **Not yet implemented (explicitly deferred, not just missing):** pulling
 pricing engine inputs from a C4C Opportunity when it's converted to a Quote.
 See `docs/pricing-engine-spec.md` for what that will need once we get to it.
+
+### Rate configuration
+
+The constants in the formulas above (freight/duty/tariff/markup rates, pick
+charges, etc.) are **not hardcoded** — they live in `db.PricingRateConfig`
+(seeded from `db/data/c4cquote.db-PricingRateConfig.csv`), are exposed as
+`PricingService.RateConfig`, and are editable from `pricing-simulation`'s
+**Admin: Rate Config** tab. Edits apply immediately to every subsequent
+`calculatePrices` call — `srv/pricing-service.js`'s `loadRates()` reads
+current values from the DB on every call rather than caching them.
+
+### Multi-item calculator + Excel upload
+
+`pricing-simulation`'s Calculator tab prices any number of line items in one
+batch (`calculatePrices` takes `many PriceCalculationInput`), each with its
+own region, cost/currency, and region-specific fields, plus **Fetch from
+ERP** / **Fetch from BI Central Cost DB** buttons per line. **Download
+template** / **Upload Excel** round-trip every one of those fields through
+an `.xlsx` file (`app/pricing-simulation/src/fields.js`'s `EXCEL_COLUMNS`),
+so a user can fill in a spreadsheet of parts offline and get priced results
+back without touching the UI form at all.
+
+## MCP server (external agent access)
+
+`app/mcp-server` is a small [MCP](https://modelcontextprotocol.io) server
+(Streamable HTTP transport) that lets an external AI agent query pricing
+the same way the UI does. It's deployed as its own Cloud Foundry app
+(`pricing-mcp-server` in `mta.yaml`) and proxies straight through to
+`PricingService` — it holds no logic and no credentials of its own.
+
+- **Endpoint:** `POST <pricing-mcp-server-url>/mcp` (Streamable HTTP,
+  stateless — one request/response per call, no session ID, no SSE stream).
+- **Auth:** pass the same PricingUser `Authorization: Basic <base64
+  email:password>` header the pricing-simulation UI uses. The MCP server
+  does not validate it itself — it forwards the header untouched to
+  `PricingService` on every tool call, so CAP's own `requires:
+  'authenticated-user'` check is what actually accepts or rejects it. A
+  request with no `Authorization` header at all is rejected by the MCP
+  server before it even opens an MCP session (`401`); a request with wrong
+  credentials opens a session fine (session init never touches
+  PricingService) but every tool call then returns an auth error.
+- **Tools:** `calculate_prices` (batch price calculation, same contract as
+  the UI's Calculate All), `fetch_cost_from_erp` / `fetch_cost_from_bi`
+  (single-part cost lookup), `get_rate_config` (read current rate
+  constants, optionally filtered by region).
+- **Local testing:** `cd app/mcp-server && npm install && API_ORIGIN=http://localhost:4004 npm start`
+  (defaults to port 8082), then connect with any MCP client using
+  `StreamableHTTPClientTransport` against `http://localhost:8082/mcp`.
 
 ## Deploying to Cloud Foundry (SAP BTP)
 

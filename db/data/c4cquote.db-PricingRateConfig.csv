@@ -1,0 +1,15 @@
+ID,region,paramKey,label,value,unit
+11111111-0000-0000-0000-000000000001,americas,freightRate,Freight Rate (LVLA=3),0.035,percent
+11111111-0000-0000-0000-000000000002,americas,dutyRate,Duty Rate (LVLA=7),0.022,percent
+11111111-0000-0000-0000-000000000003,americas,tariffRate,Tariff Rate (LVLA=8),0.015,percent
+11111111-0000-0000-0000-000000000004,americas,lcaRateDomestic,LCA Handling Fee - Domestic,0.067,percent
+11111111-0000-0000-0000-000000000005,americas,lcaRateOverseas,LCA Handling Fee - Overseas,0.105,percent
+11111111-0000-0000-0000-000000000006,americas,pickCharge,Pick Charge (flat USD),34,currency
+22222222-0000-0000-0000-000000000001,europe,scmMarkupRate,SCM Markup Rate,0.047,percent
+22222222-0000-0000-0000-000000000002,europe,pickCharge,Pick Charge (flat EUR),21,currency
+33333333-0000-0000-0000-000000000001,china,lcsFactor,LCS Factor (JDE China Direct),1.032,factor
+33333333-0000-0000-0000-000000000002,china,fdFactorUS,F&D Factor (COO = US),1.32,factor
+33333333-0000-0000-0000-000000000003,china,fdFactorOther,F&D Factor (COO <> US),1.21,factor
+33333333-0000-0000-0000-000000000004,china,lceMarkupRate,LCE Markup Rate,0.06,percent
+33333333-0000-0000-0000-000000000005,china,lcsMarkupRate,LCS Markup Rate,0.032,percent
+44444444-0000-0000-0000-000000000001,india,overseasMarkupRate,Overseas Supplier Markup Rate,0.4,percent

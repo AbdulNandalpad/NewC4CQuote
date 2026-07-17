@@ -96,6 +96,31 @@ modules:
       API_ORIGIN: ~{srv-api/srv-url}
       FRAME_ANCESTORS: "'self'"
 
+  # MCP server: exposes calculatePrices / fetchCostFromERP / fetchCostFromBI /
+  # RateConfig to any MCP-speaking external agent over Streamable HTTP at
+  # POST /mcp. No credentials are stored here — every tool call passes the
+  # caller's own Authorization header straight through to PricingService, so
+  # a caller authenticates as the same PricingUser Basic Auth account used
+  # by the pricing-simulation UI, and CAP is what actually accepts/rejects it.
+  - name: pricing-mcp-server
+    type: nodejs
+    path: app/mcp-server
+    parameters:
+      instances: 1
+      buildpack: nodejs_buildpack
+      memory: 128M
+      disk-quota: 256M
+    build-parameters:
+      builder: npm
+    provides:
+      - name: pricing-mcp-ui
+        properties:
+          url: ${default-url}
+    requires:
+      - name: srv-api
+    properties:
+      API_ORIGIN: ~{srv-api/srv-url}
+
 resources:
   # Provides destination lookup for srv's outbound call to API6 (ERP + BI
   # Central Cost DB). The service instance is provisioned here, but the
