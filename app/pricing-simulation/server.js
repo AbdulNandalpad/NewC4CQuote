@@ -9,7 +9,12 @@ const app = express()
 // URL can be set per-environment via CF env var without rebuilding.
 app.get('/runtime-config.js', (_req, res) => {
   res.type('application/javascript')
-  res.send(`window.__CONFIG__ = ${JSON.stringify({ apiOrigin: process.env.API_ORIGIN || '' })}`)
+  res.send(
+    `window.__CONFIG__ = ${JSON.stringify({
+      apiOrigin: process.env.API_ORIGIN || '',
+      adminEmail: process.env.PRICING_ADMIN_EMAIL || '',
+    })}`,
+  )
 })
 
 app.use(express.static(path.join(dirname, 'dist')))

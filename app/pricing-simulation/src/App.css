@@ -32,6 +32,49 @@
   max-width: 640px;
   margin-top: 6px;
 }
+.app-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.sign-out-btn {
+  background: transparent;
+  border: 1px solid var(--tss-border);
+  color: var(--tss-white-dim);
+  padding: 8px 14px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.sign-out-btn:hover {
+  border-color: var(--tss-orange);
+  color: var(--tss-orange);
+}
+
+.login-box {
+  max-width: 360px;
+  margin: 120px auto;
+  text-align: center;
+}
+.login-box h1 {
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--tss-white);
+  font-size: 24px;
+}
+.login-box .subtitle {
+  color: var(--tss-white-dim);
+  font-size: 13px;
+  margin: 8px 0 24px;
+}
+.login-box form {
+  text-align: left;
+}
 
 .wrap {
   display: grid;

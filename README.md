@@ -38,28 +38,45 @@ no approuter in front of either one right now. Instead:
   `Content-Security-Policy: frame-ancestors <FRAME_ANCESTORS>` on every
   response, which is what allows C4C to iframe it at all (see below).
 
-**No authentication is enforced anywhere right now — this is deliberate,
-not an oversight.** Restricting `pricing-simulation` to specific BTP users
-via XSUAA was built and verified end to end (CAP-level `@requires`, an
-approuter, `xs-security.json` with a role collection — no auth or role
-checks, no interactive login popping up mid-mashup, no dependency headaches),
-then intentionally deactivated so the rest of the app could get finished and
-actually be seen working first. That work resumes as its own OBO/
-authorization phase — see "Open items". The groundwork is still in the repo:
-`xs-security.json` and `app/router/` (approuter config), just not wired into
-`mta.yaml`/`package.json` right now. To reactivate: add `@(requires:
-'PricingUser')` back to `service PricingService` in
-`srv/pricing-service.cds`, restore the `pricing-approuter`/`NewC4CQuote-auth`
-blocks in `mta.yaml` (see git history around the commit that added them),
-and re-add `"[production]": {"auth": "xsuaa"}` to `package.json`.
+## Access control
+
+**`QuoteItemsService` has no authentication — deliberate, see "Open items".**
+
+**`PricingService`** currently has a lightweight **interim lock**: a single
+hardcoded account (HTTP Basic Auth, `kind: 'basic'` in CAP, no XSUAA/
+`@sap/xssec` involved), configured in `srv/server.js`. Real BTP-user/role-
+based restriction via XSUAA was built and verified end to end (CAP-level
+`@requires`, an approuter, `xs-security.json` with a role collection), then
+intentionally deactivated because it required `@sap/xssec`, which turned
+into a real deployment headache (see git log around "Fix @sap/xssec missing
+at runtime" and "Deactivate PricingService auth"). That work resumes as its
+own OBO/authorization phase — see "Open items". The groundwork is still in
+the repo: `xs-security.json` and `app/router/` (approuter config), just not
+wired into `mta.yaml`/`package.json` right now.
+
+**The interim lock**, concretely:
+- One account: email `abdul.nandalpad@trelleborg.com` (default; override via
+  `PRICING_ADMIN_EMAIL` on both `NewC4CQuote-srv` and `pricing-simulation`),
+  password from `PRICING_ADMIN_PASSWORD` — **not committed anywhere**; set it
+  with `cf set-env NewC4CQuote-srv PRICING_ADMIN_PASSWORD '...'` then
+  `cf restage NewC4CQuote-srv`. Unset = nobody can log in (fails closed).
+- Enforced server-side (`@(requires: 'authenticated-user')` on
+  `PricingService` in `srv/pricing-service.cds`), so it's protected
+  regardless of how it's reached.
+- `pricing-simulation`'s React UI has a matching login screen (password
+  only, email is fixed) that stores the credential in `sessionStorage` and
+  attaches it as a `Basic` auth header to `/pricing` calls.
 
 ## Local development
 
 Terminal 1 — backend:
 ```
 npm install
-npm start                      # cds-serve on http://localhost:4004
+PRICING_ADMIN_PASSWORD=devpass npm start   # cds-serve on http://localhost:4004
 ```
+Without `PRICING_ADMIN_PASSWORD` set, `PricingService` still boots fine but
+nobody (including the pricing-simulation UI) can log in — see "Access
+control".
 
 Terminal 2 — pricing simulation UI:
 ```
@@ -122,6 +139,13 @@ Requires the [Cloud MTA Build Tool](https://sap.github.io/cloud-mta-build-tool/)
 npm install -g mbt
 mbt build
 cf deploy mta_archives/NewC4CQuote_1.0.0.mtar
+```
+
+After deploying, set the interim lock's password (see "Access control"
+above) — without this nobody, including you, can use `pricing-simulation`:
+```
+cf set-env NewC4CQuote-srv PRICING_ADMIN_PASSWORD 'choose-something'
+cf restage NewC4CQuote-srv
 ```
 
 Before deploying to a real C4C tenant, edit `mta.yaml`:

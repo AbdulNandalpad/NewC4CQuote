@@ -1,7 +1,64 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import './App.css'
 
 const API_BASE = `${window.__CONFIG__?.apiOrigin || ''}/pricing`
+
+// Interim lock: a single hardcoded account on the backend (srv/server.js),
+// HTTP Basic Auth. Must match PRICING_ADMIN_EMAIL there if that's ever
+// changed. Real BTP-user/role-based login is parked for later — see README.
+const ADMIN_EMAIL = window.__CONFIG__?.adminEmail || 'abdul.nandalpad@trelleborg.com'
+const AUTH_STORAGE_KEY = 'pricing-sim-auth'
+
+function Login({ onSuccess }) {
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [checking, setChecking] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    setChecking(true)
+    setError('')
+    const authHeader = `Basic ${btoa(`${ADMIN_EMAIL}:${password}`)}`
+    try {
+      const res = await fetch(`${API_BASE}/Simulations?$top=1`, {
+        headers: { Authorization: authHeader },
+      })
+      if (res.ok) {
+        sessionStorage.setItem(AUTH_STORAGE_KEY, authHeader)
+        onSuccess(authHeader)
+      } else {
+        setError('Wrong password.')
+      }
+    } catch {
+      setError('Could not reach the pricing service.')
+    } finally {
+      setChecking(false)
+    }
+  }
+
+  return (
+    <main className="app">
+      <div className="login-box">
+        <h1>Regional Pricing Simulation</h1>
+        <p className="subtitle">Restricted — sign in as {ADMIN_EMAIL}.</p>
+        <form onSubmit={submit}>
+          <div className="field">
+            <label>Password</label>
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />
+          </div>
+          <button type="submit" className="calc-btn" disabled={checking}>
+            {checking ? 'Checking…' : 'Sign In'}
+          </button>
+          {error && (
+            <div className="alert-box show">
+              <div className="alert-title">⚠ {error}</div>
+            </div>
+          )}
+        </form>
+      </div>
+    </main>
+  )
+}
 
 const REGIONS = [
   { key: 'americas', label: 'Americas' },
@@ -151,6 +208,7 @@ function RegionFields({ region, fields, onChange }) {
 }
 
 function App() {
+  const [authHeader, setAuthHeader] = useState(undefined) // undefined = still checking, null = not signed in
   const [region, setRegion] = useState('americas')
   const [partNumber, setPartNumber] = useState('4501234567')
   const [quantity, setQuantity] = useState(100)
@@ -158,6 +216,28 @@ function App() {
   const [fieldsByRegion, setFieldsByRegion] = useState(DEFAULT_FIELDS)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem(AUTH_STORAGE_KEY)
+    if (!stored) {
+      setAuthHeader(null)
+      return
+    }
+    fetch(`${API_BASE}/Simulations?$top=1`, { headers: { Authorization: stored } })
+      .then((res) => {
+        if (res.ok) setAuthHeader(stored)
+        else {
+          sessionStorage.removeItem(AUTH_STORAGE_KEY)
+          setAuthHeader(null)
+        }
+      })
+      .catch(() => setAuthHeader(null))
+  }, [])
+
+  function signOut() {
+    sessionStorage.removeItem(AUTH_STORAGE_KEY)
+    setAuthHeader(null)
+  }
 
   const fields = fieldsByRegion[region]
 
@@ -187,7 +267,7 @@ function App() {
       }
       const res = await fetch(`${API_BASE}/calculatePrice`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: authHeader },
         body: JSON.stringify(body),
       })
       const data = await res.json()
@@ -199,10 +279,16 @@ function App() {
     }
   }
 
+  if (authHeader === undefined) return null
+  if (authHeader === null) return <Login onSuccess={setAuthHeader} />
+
   return (
     <main className="app">
       <header className="app-header">
-        <h1>Regional Pricing Simulation</h1>
+        <div className="app-header-row">
+          <h1>Regional Pricing Simulation</h1>
+          <button type="button" className="sign-out-btn" onClick={signOut}>Sign out</button>
+        </div>
         <p className="subtitle">
           Runs the real regional pricing engine (see calculatePrice). Leave Base Cost blank to look it up live
           via ERP / BI Central Cost DB through API6.

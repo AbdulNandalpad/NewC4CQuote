@@ -21,11 +21,11 @@ type PriceCalculationResult {
   error      : String;
 }
 
-// Auth is deliberately OFF for now (open to anyone) — restricting this to
-// BTP users via XSUAA is prepared but parked (xs-security.json, app/router)
-// until we come back to it as its own OBO/authorization phase, once the
-// rest of the app is built out. See README "Open items".
-service PricingService @(path:'/pricing') {
+// Interim lock: a single hardcoded account (see srv/server.js), HTTP Basic
+// Auth, no XSUAA. Real BTP-user/role-based restriction via XSUAA is
+// prepared but parked (xs-security.json, app/router) until the upcoming
+// OBO/authorization phase. See README "Open items".
+service PricingService @(path:'/pricing', requires: 'authenticated-user') {
   entity Simulations     as projection on db.PricingSimulations;
   entity SimulationItems as projection on db.PricingSimulationItems;
 
