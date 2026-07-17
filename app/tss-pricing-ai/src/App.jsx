@@ -38,7 +38,7 @@ function Login({ onSuccess }) {
   return (
     <main className="app">
       <div className="login-box">
-        <div className="logo-slot" aria-hidden="true" />
+        <img className="logo" src="/trelleborg-logo.svg" alt="Trelleborg" />
         <h1>TSS Pricing AI</h1>
         <p className="subtitle">Restricted — sign in as {ADMIN_EMAIL}.</p>
         <form onSubmit={submit}>
@@ -94,7 +94,7 @@ function App() {
       <header className="app-header">
         <div className="app-header-row">
           <div className="brand">
-            <div className="logo-slot" aria-hidden="true" />
+            <img className="logo" src="/trelleborg-logo.svg" alt="Trelleborg" />
             <h1>TSS Pricing AI</h1>
           </div>
           <button type="button" className="sign-out-btn" onClick={signOut}>Sign out</button>
