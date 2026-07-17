@@ -17,68 +17,41 @@ services: `/pricing` and `/quote-items`.
 
 ```
 srv/                CAP backend (Node.js) — OData services, SQLite for now
-  pricing-service.cds     — requires the PricingUser XSUAA role
-  quote-items-service.cds — deliberately open, no auth (see below)
+  pricing-service.cds
+  quote-items-service.cds
 db/schema.cds        Data model for both services
 app/pricing-simulation/   React (Vite) UI + a tiny Express static server
-app/router/               approuter — the only supported entry point for Part 1
 app/quote-items/          React (Vite) UI + a tiny Express static server
-mta.yaml              Cloud Foundry MTA: srv, pricing-simulation, pricing-approuter, quote-items
-xs-security.json      XSUAA scope/role/role-collection for pricing-approuter
+mta.yaml              Cloud Foundry MTA: 3 modules (srv, pricing-simulation, quote-items)
 ```
 
-The two apps are deliberately architected differently, because they have
-opposite access requirements:
-
-**`quote-items`** is its own standalone Cloud Foundry app, reached directly,
-no approuter in front of it. An approuter+XSUAA gateway forces an
-interactive login redirect, which would break an app that's meant to be
-silently iframed inside a C4C mashup. Instead:
-- The CAP backend allows cross-origin requests from its UI origin (CORS,
+Each UI app is deployed as its **own** Cloud Foundry app, reached directly —
+no approuter in front of either one right now. Instead:
+- The CAP backend allows cross-origin requests from both UI origins (CORS,
   see `srv/server.js`, configured via the `ALLOWED_ORIGINS` env var).
-- It's served by a minimal Express server (`server.js`) instead of a static
-  buildpack, so we have full control over response headers and can inject
-  the backend's URL at **runtime** (via `/runtime-config.js`, reading an
-  `API_ORIGIN` env var) rather than baking it in at build time — CF only
+- Each UI is served by a minimal Express server (`server.js`) instead of a
+  static buildpack, so we have full control over response headers and can
+  inject the backend's URL at **runtime** (via `/runtime-config.js`, reading
+  an `API_ORIGIN` env var) rather than baking it in at build time — CF only
   assigns routes at push time, so build-time env vars don't work here.
-- It additionally sets `Content-Security-Policy: frame-ancestors
-  <FRAME_ANCESTORS>` on every response, which is what allows C4C to iframe
-  it at all (see below).
-- **No authentication is enforced on `quote-items`/`QuoteItemsService`** —
-  still an open item, see "Open items".
+- `app/quote-items/server.js` additionally sets
+  `Content-Security-Policy: frame-ancestors <FRAME_ANCESTORS>` on every
+  response, which is what allows C4C to iframe it at all (see below).
 
-**`pricing-simulation`** is the opposite: an internal tool that should only
-be usable by specific BTP users, so it sits behind `pricing-approuter` +
-XSUAA. See "Access control" below.
-
-## Access control
-
-`PricingService` (everything under `/pricing`, including `calculatePrice`)
-requires the **`PricingUser`** XSUAA role — enforced by CAP itself
-(`@(requires: 'PricingUser')` in `srv/pricing-service.cds`), not just by the
-approuter sitting in front of it, so it's protected even if someone finds
-`pricing-simulation`'s own direct CF URL.
-
-To grant access: in **BTP Cockpit → Security → Users**, assign the
-**"Pricing Simulation User"** role collection (defined in `xs-security.json`,
-created automatically on deploy) to specific people. Nobody has it by
-default — deploying this doesn't grant anyone access; that's a separate,
-deliberate admin action.
-
-`QuoteItemsService` has no such restriction — see "Open items" for why.
-
-**Local dev note:** the approuter's login redirect only works when deployed
-(it needs a real XSUAA service binding). Locally, `cds watch` uses CAP's
-built-in mocked-auth users configured in `package.json`
-(`alice`/`alice`, who has `PricingUser`; `bob`/`bob`, who doesn't) — test
-with Basic Auth, e.g.:
-```
-curl -u alice:alice -X POST http://localhost:4004/pricing/calculatePrice \
-  -H 'Content-Type: application/json' -d '{"region":"india","baseCost":100,"supplierType":"local"}'
-```
-The `pricing-simulation` React UI itself doesn't implement a login form, so
-exercising the full click-through flow currently only works once deployed,
-through `pricing-approuter`.
+**No authentication is enforced anywhere right now — this is deliberate,
+not an oversight.** Restricting `pricing-simulation` to specific BTP users
+via XSUAA was built and verified end to end (CAP-level `@requires`, an
+approuter, `xs-security.json` with a role collection — no auth or role
+checks, no interactive login popping up mid-mashup, no dependency headaches),
+then intentionally deactivated so the rest of the app could get finished and
+actually be seen working first. That work resumes as its own OBO/
+authorization phase — see "Open items". The groundwork is still in the repo:
+`xs-security.json` and `app/router/` (approuter config), just not wired into
+`mta.yaml`/`package.json` right now. To reactivate: add `@(requires:
+'PricingUser')` back to `service PricingService` in
+`srv/pricing-service.cds`, restore the `pricing-approuter`/`NewC4CQuote-auth`
+blocks in `mta.yaml` (see git history around the commit that added them),
+and re-add `"[production]": {"auth": "xsuaa"}` to `package.json`.
 
 ## Local development
 
@@ -94,9 +67,6 @@ cd app/pricing-simulation
 npm install
 npm run dev                    # http://localhost:5173, proxies /pricing to :4004
 ```
-Note: since PricingService now requires the PricingUser role, calls made
-from the browser UI here will get 401/403 — use the curl example above to
-exercise the backend directly during local dev.
 
 Terminal 3 — quote items UI:
 ```
@@ -163,10 +133,6 @@ Before deploying to a real C4C tenant, edit `mta.yaml`:
   this proof-of-concept but not for real data. Swap in `cds add hana` or
   `cds add postgres` once that decision is made.
 
-After deploying, nobody can use `pricing-simulation` yet — go to **BTP
-Cockpit → Security → Users** and assign the **"Pricing Simulation User"**
-role collection to whoever should have access. See "Access control" above.
-
 ## Embedding `quote-items` in SAP C4C as a Mashup
 
 C4C supports embedding an external web page into a screen via a **URL
@@ -200,22 +166,20 @@ screen's business object fields.
 
 ## Open items (to define as we proceed)
 
-- **Auth strategy for `quote-items`** (can't be an interactive login redirect
-  inside a small iframe tab, unlike `pricing-simulation` which now has one)
-  — options include a signed token passed as a mashup parameter, IP/network
-  restriction, or a service-to-service trust between C4C and this app.
-- **CSRF protection is disabled** on `pricing-approuter`'s route to `srv-api`
-  (`app/router/xs-app.json`, `csrfProtection: false`) — the React client
-  doesn't yet implement the token-fetch round trip approuter's CSRF
-  protection expects. Worth revisiting once `pricing-simulation` does
-  anything more sensitive than run a calculation.
-- **`pricing-simulation`'s direct CF route still exists** — `pricing-approuter`
-  is the intended entry point, but nothing currently removes or network-
-  isolates the backing app's own public route. `PricingService` itself
-  still enforces the `PricingUser` role either way (defense in depth), so
-  direct access just fails rather than leaking data — but locking the route
-  down fully (e.g. `no-route`/internal domain) is a reasonable hardening
-  follow-up.
+- **Authorization (OBO/XSUAA)** — deliberately parked as its own upcoming
+  phase, for both apps: restricting `pricing-simulation` to specific BTP
+  users, and finding a workable auth story for `quote-items` (can't be an
+  interactive login redirect inside a small iframe tab — options include a
+  signed token passed as a mashup parameter, IP/network restriction, or a
+  service-to-service trust between C4C and this app). The `pricing-simulation`
+  side was already built and verified once (CAP-level `@requires`, an
+  approuter, `xs-security.json` with a role collection) — see "Architecture"
+  above for how to reactivate it. Known follow-ups for when that resumes:
+  CSRF protection was left off on the approuter's proxy route
+  (`app/router/xs-app.json`, `csrfProtection: false`) since the React client
+  doesn't implement the token-fetch handshake yet; and `pricing-simulation`'s
+  own direct CF route should probably be network-isolated (`no-route` +
+  internal domain) rather than just relying on the CAP-level role check.
 - **Real C4C data integration**: today `QuoteItems` is our own copy, keyed
   by `c4cQuoteId`/`c4cItemId`. Reading/writing the actual C4C quote will
   need a Communication Arrangement + OData API call from `srv/`.

@@ -21,13 +21,11 @@ type PriceCalculationResult {
   error      : String;
 }
 
-// Restricted to BTP users holding the PricingUser role (see xs-security.json)
-// — a BTP admin assigns the "Pricing Simulation User" role collection to
-// specific people in the subaccount's Security > Users cockpit. Reached via
-// app/router (approuter + XSUAA); QuoteItemsService is deliberately NOT
-// gated the same way, since it must stay reachable anonymously for the C4C
-// mashup iframe.
-service PricingService @(path:'/pricing', requires: 'PricingUser') {
+// Auth is deliberately OFF for now (open to anyone) — restricting this to
+// BTP users via XSUAA is prepared but parked (xs-security.json, app/router)
+// until we come back to it as its own OBO/authorization phase, once the
+// rest of the app is built out. See README "Open items".
+service PricingService @(path:'/pricing') {
   entity Simulations     as projection on db.PricingSimulations;
   entity SimulationItems as projection on db.PricingSimulationItems;
 

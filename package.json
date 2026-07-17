@@ -4,7 +4,6 @@
   "type": "module",
   "dependencies": {
     "@sap/cds": "^10",
-    "@sap/xssec": "^4",
     "cors": "^2.8.6"
   },
   "devDependencies": {
@@ -21,15 +20,6 @@
         "kind": "rest",
         "credentials": {
           "destination": "API6"
-        }
-      },
-      "[production]": {
-        "auth": "xsuaa"
-      },
-      "auth": {
-        "users": {
-          "alice": { "password": "alice", "roles": ["PricingUser"] },
-          "bob": { "password": "bob", "roles": [] }
         }
       }
     }
