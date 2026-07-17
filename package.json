@@ -15,11 +15,20 @@
   },
   "private": true,
   "cds": {
+    "features": {
+      "in_memory_db": true
+    },
     "requires": {
       "API6": {
         "kind": "rest",
         "credentials": {
           "destination": "API6"
+        }
+      },
+      "db": {
+        "kind": "sqlite",
+        "credentials": {
+          "url": ":memory:"
         }
       }
     }

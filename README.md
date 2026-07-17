@@ -46,6 +46,18 @@ no approuter in front of either one right now. Instead:
 
 ## Access control
 
+**Important CAP gotcha, if you add a new service:** once *any* real auth
+strategy is configured (we use `kind: 'basic'`) and `NODE_ENV=production`
+(which CF always sets), CAP defaults **every service without an explicit
+`@requires`/`@restrict` to requiring `authenticated-user`** —
+`srv/protocols/http.js`'s `authorize` getter. This only shows up in
+production; local `cds watch` never sets `NODE_ENV=production`, so it's
+easy to not notice until deployed. That's why `QuoteItemsService` has
+`@(requires: 'any')` in `srv/quote-items-service.cds` — without it, it
+would silently start requiring login the moment it hit CF, breaking the
+C4C mashup. Any new service that should stay public needs the same
+`requires: 'any'` annotation.
+
 **`QuoteItemsService` has no authentication — deliberate, see "Open items".**
 
 **`PricingService`** currently has a lightweight **interim lock**: a single
